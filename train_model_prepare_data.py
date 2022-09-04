@@ -22,7 +22,7 @@ detected_transcript = pd.read_csv(
 all_z_tiles, fovs = prepare_tile.prepar_tile(detected_transcript, all_Z_DAPI)
 
 # generateing training and validataion set
-train_test_set_path = 'U:/Lab/Bereket_public/Merfish_AD_project_data_analysis/cell_pose/cellpose_training_dataset'
+train_test_set_path = 'U:/Lab/Bereket_public/Merfish_AD_project_data_analysis/cell_pose/cellpose_training_datasetall_selected_tiles'
 
 CA_DG_fovs = [1637,1668,1669,1670,1671,1672,1688,1689,1690,1691,1692]
 CA_DG_fov_idx = [fovs.index(f) for f in CA_DG_fovs]
