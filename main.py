@@ -121,7 +121,7 @@ def main():
             file_path + 'detected_transcripts.csv')
 
         # # prepare tile
-        all_z_tiles, fovs = prepare_tile.prepar_tie(detected_transcript, all_Z_DAPI)
+        all_z_tiles, fovs = prepare_tile.prepar_tile(detected_transcript, all_Z_DAPI)
 
         try:
             with open(file_path + 'all_output_mask.pickle', 'rb') as f:
