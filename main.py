@@ -19,6 +19,7 @@ import dapi_reader
 import prepare_tile
 import final_cell_data_generator
 import pickle
+import datetime
 
 
 import cv2 as cv
@@ -103,7 +104,7 @@ def main():
     print('>>> GPU activated? %d' % use_GPU)
     logger_setup()
 
-    file_paths = ['U:/Lab/MERFISH_Imaging data/Kim2_202112171955_12172021TREM2-5x12Mo300GP_VMSC00101/region_1/'] #,
+    file_paths = ['U:/Lab/MERFISH_Imaging data/Kim2_202112171955_12172021TREM2-5x12Mo300GP_VMSC00101/region_0/'] #,
                   # 'U:/Lab/MERFISH_Imaging data/Kim2_202112171955_12172021TREM2-5x12Mo300GP_VMSC00101/region_0/'
                   # 'Z:/Lab/MERFISH_Imaging data/Kim2_202112171955_12172021TREM2-5x12Mo300GP_VMSC00101/region_1/',
                   # 'Z:/Lab/MERFISH_Imaging data/Kim2_202112171955_12172021TREM2-5x12Mo300GP_VMSC00101/region_2/',
@@ -122,14 +123,16 @@ def main():
 
         # # prepare tile
         all_z_tiles, fovs = prepare_tile.prepar_tile(detected_transcript, all_Z_DAPI)
-
+        date_today = datetime.datetime.now()
+        mm_dd_yy = str(date_today.month) + '_' + str(date_today.day) + '_' + str(date_today.year)
         try:
-            with open(file_path + 'all_output_mask.pickle', 'rb') as f:
+            with open(file_path + 'all_output_mask_' + mm_dd_yy +'.pickle', 'rb') as f:
                  z_masks = pickle.load(f)
                  print('done reading z_mask')
         except:
             # use trained cellpose model
-            model_path = 'U:/Lab/Bereket_public/Merfish_AD_project_data_analysis/cell_pose/model_AD_net/cellpose_AD_net_71122'
+            # model_path = 'U:/Lab/Bereket_public/Merfish_AD_project_data_analysis/cell_pose/model_AD_net/cellpose_AD_net_71122'
+            model_path = 'U:/Lab/Bereket_public/Merfish_AD_project_data_analysis/cell_pose/cellpose_training_datasetall_selected_tiles/training_set/models/cellpose_AD_net_9222'
             model = models.CellposeModel(gpu=use_GPU,
                                          pretrained_model=model_path)
 
@@ -150,7 +153,7 @@ def main():
                 z_masks.append(masks)
                 print(f'done preparing the mask for z layer{z_idx}')
 
-            with open(file_path + 'all_output_mask.pickle', 'wb') as f:
+            with open(file_path + 'all_output_mask_' + mm_dd_yy +'.pickle', 'wb') as f:
                 pickle.dump(z_masks, f)
 
         # generate the cell data
