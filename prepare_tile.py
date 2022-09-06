@@ -54,6 +54,7 @@ def prepare_train_test_data(all_z_tiles,save_path, **kwargs):
         # if no specification about the fov is given pick random tiles
         num = np.random.randint(100, 200, size=[1, 100])
         dapi_tiles = all_z_tiles[0]
+        z_idx = 0
     elif ('z_idx' in kwargs) & ('started_fov_idx' in kwargs ):
         # start from the specific fov_idx and pick the next 100 frames for training
         for kw in kwargs.keys():
@@ -76,7 +77,7 @@ def prepare_train_test_data(all_z_tiles,save_path, **kwargs):
         os.mkdir(save_path + 'all_selected_tiles/')
 
     for i,dapi_imag in enumerate(selected_dapi_tile):
-        imsave(save_path + 'all_selected_tiles/tile_' + str(i) + '.tif', dapi_imag)
+        imsave(save_path + 'all_selected_tiles/tile_' + str(z_idx) + '_' + str(i) + '.tif', dapi_imag)
 
     return None
 
@@ -96,12 +97,14 @@ def split_train_test(file_path,split_percent = 0.25,start_fov_idx=0, validation_
         all_npy_files = []
 
         for files in os.listdir(file_path):
-             if files.endswith('.tif'):
-                 all_tif_files.append(io.imread(file_path +'/'+files))
-             elif files.endswith('.npy'):
-                 all_npy_files.append(np.load(file_path +'/'+files,allow_pickle= True))
 
-        # check if the length of the two list is the same
+             if files.endswith('.npy'):
+                 # this npy file is a dictionary with the mask and corresponding tif file
+                 labeled_image = np.load(file_path + '/' + files, allow_pickle=True).item()
+                 all_tif_files.append(labeled_image['img'])
+                 all_npy_files.append(labeled_image)
+
+        # just to check if the length of the two list is the same
         if len(all_tif_files) != len(all_npy_files):
             index_limit = np.minimum(len(all_tif_files),len(all_npy_files))
         else:
@@ -109,7 +112,7 @@ def split_train_test(file_path,split_percent = 0.25,start_fov_idx=0, validation_
 
         # randomly split the selected_dapi_tile into train set and 25% into validation set
         rand_idx = np.random.randint(start_fov_idx,start_fov_idx+index_limit,size = [1,int(0.25*index_limit)])
-        rand_idx_list = rand_idx.tolist()[0] # converting the np array to list
+        rand_idx_list = list(set(rand_idx.tolist()[0])) # converting the np array to list and making sure the list is unqie
 
         if validation_fovs != None:
             for val in validation_fovs:
@@ -124,8 +127,8 @@ def split_train_test(file_path,split_percent = 0.25,start_fov_idx=0, validation_
             os.mkdir(file_path + '/training_set/')
 
         pdb.set_trace()
-
-        for i,fov_idx_value in enumerate(np.arange(start_fov_idx,start_fov_idx + index_limit).tolist()):
+        all_fov_used = np.arange(start_fov_idx, start_fov_idx + index_limit).tolist()
+        for i,fov_idx_value in enumerate(all_fov_used):
             if fov_idx_value in rand_idx_list:
                 imsave( file_path + '/validation_set/validation_tile_' + str(valid_count) + '.tif',all_tif_files[i])
                 np.save(file_path + '/validation_set/validation_tile_' + str(valid_count) + '_seg.npy', all_npy_files[i])
