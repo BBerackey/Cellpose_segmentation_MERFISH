@@ -10,6 +10,7 @@ import dapi_reader
 import prepare_tile
 import pandas as pd
 import pickle
+import pdb
 
 use_GPU = core.use_gpu()
 yn = ['NO','Yes']
@@ -19,19 +20,18 @@ train_test_set_path = 'U:/Lab/Bereket_public/Merfish_AD_project_data_analysis/ce
 with open(train_test_set_path+'/fovs.pickle','rb') as f:
     fovs = pickle.load(f)
 
-import pdb
-pdb.set_trace()
-
 
 CA_DG_fovs = [1637,1668,1669,1670,1671,1672,1688,1689,1690,1691,1692]
 CA_DG_fovs_idx = [fovs.index(f) for f in CA_DG_fovs]
-validation_set = CA_DG_fovs_idx[:3]
+validation_set = CA_DG_fovs_idx[:5]
 start_fov_idx = fovs.index(1668)
 end_fov_idx = fovs.index(1695)
 
 train_test_set_path = 'U:/Lab/Bereket_public/Merfish_AD_project_data_analysis/cell_pose/cellpose_training_datasetall_selected_tiles'
 # split the training and validation set
 prepare_tile.split_train_test(train_test_set_path,start_fov_idx = start_fov_idx,validation_fovs = validation_set)
+
+pdb.set_trace()
 
 all_train_files = listdir (train_test_set_path + '/training_set')
 all_test_files = listdir(train_test_set_path + "/validation_set")
@@ -81,13 +81,16 @@ weight_decay = 0.0001
 logger = io.logger_setup()
 
 # define cellpose model (without size model)
-model = models.CellposeModel(gpu = use_GPU, model_type = initial_model)
+model = models.CellposeModel(gpu = use_GPU, model_type= 'cellpose_AD_net_71122', pretrained_model = initial_model)
 
 # set channels
 channels = [chan,chan2]
 
 # get the files
 output = io.load_train_test_data(train_dir,test_dir,mask_filter = "_seg.npy") # mask_filter is a tag word to identify the mask label files
+pdb.set_trace()
+
+
 train_data, train_labels,_,test_data,test_labels,_ = output
 
 new_model_path = model.train(train_data,train_labels,
@@ -98,9 +101,9 @@ new_model_path = model.train(train_data,train_labels,
                              n_epochs = n_epochs,
                              learning_rate=learning_rate,
                              weight_decay=weight_decay,
-                             nimag_per_epoch = 8, # this is basically the batch size
+                             nimg_per_epoch = 8, # this is basically the batch size
                              model_name= model_name
                              )
 # diameter of lavels in trainng images
-diam_labels = model.dim_labels.copy()
+diam_labels = model.diam_labels.copy()
 
