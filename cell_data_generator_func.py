@@ -104,23 +104,38 @@ def numba_fun_1(rgb_mask_copy, unique_rgb_mask):
     return final_rgb_mask, unique_rgb_mask_label,no_cell_flag  # np.array(unique_rgb_mask_label)
 
 
-@jit(nopython=True)
-def numba_fun_2(fov_mask, unique_rgb_mask_label, unique_idx, fov_y_min, fov_x_min):
+# @jit(nopython=True)
+def numba_fun_2(fov_mask, unique_rgb_mask_label, unique_idx, fov_xy_min,fov_xy_max):
     fov_log_idx = fov_mask == np.max(unique_rgb_mask_label[unique_idx, :])
     ind = fov_log_idx.nonzero()
     ind_1 = ind[0].reshape(ind[0].shape[0], 1)
     ind_2 = ind[1].reshape(ind[1].shape[0], 1)
     ind = np.concatenate((ind_1, ind_2), axis=1)  # [x_ind,y_ind]
-    ind = np.add(ind * 0.108, np.array([fov_y_min, fov_x_min]))  # convert to pxl to microns  and the offset
-    label_x_min, label_x_max = ind[:, 0].min(), ind[:, 0].max()  # these are the xy max and mins
-    label_y_min, label_y_max = ind[:, 1].min(), ind[:, 1].max()
+    ind = np.add(ind * 0.108, fov_xy_min)  # convert to pxl to microns  and the offset
+                                           # fov_xy_min in np array [fov_y_min,fov_x_min]
+    label_y_min, label_y_max = ind[:, 0].min(), ind[:, 0].max()  # these are the xy max and mins
+    label_x_min, label_x_max = ind[:, 1].min(), ind[:, 1].max()
 
     # calculate x and y coord of cell center
-    center_y = label_x_min + (label_x_max - label_x_min) / 2
-    center_x = label_y_min + (label_y_max - label_y_min) / 2
+    center_x = label_x_min + (label_x_max - label_x_min) / 2
+    center_y = label_y_min + (label_y_max - label_y_min) / 2
     # ** note the center_x and center_y are switched inorder to match the DAPI
 
-    # filter the detected_transcript based on the xy indexs
+    # before preceeding further  we need to check if the cell is far enough from the boundary of the
+    # fov. According to Kevin, the cells should be atleast 20 micron away from the boundary
+
+    if (center_x - fov_xy_min[1]) < 20: # 1st check if center_x is far enough from the left edge
+        return None
+    elif (fov_xy_max[1] - center_x) < 20: # 2nd check if center_x is far enough from the right edge
+        return None
+    elif (center_y - fov_xy_min[0]) < 20: # 3rd check if center_y is far enough from the top edge
+        return None
+    elif (fov_xy_max[0] - center_y) < 20: # 4th check if center_y is far enough from the bottom edge
+        return None
+    else:
+        pass
+
+    # if the cell if far enough then, filter the detected_transcript based on the xy indexs
     cell_contour_1 = []
     cell_contour_2 = []
     for i in np.unique(ind[:, 0]):
@@ -144,13 +159,14 @@ def numba_fun_2(fov_mask, unique_rgb_mask_label, unique_idx, fov_y_min, fov_x_mi
         cell_contour_1.append((temp_coord_1[0], temp_coord_1[1]))
         cell_contour_2.append((temp_coord_2[0], temp_coord_2[1]))
     cell_contour = cell_contour_1 + cell_contour_2[::-1]
+    cell_contour.append(cell_contour[0]) # appending the first element so that the contour closes
 
     return cell_contour, center_x, center_y, label_x_min, label_x_max, label_y_min, label_y_max
 
 
 def data_generator_per_fov(func_input_arg):
     # fov_detected_transcript, mask, selected_dapi, gene_panel, fov_selected, z_idx = func_input_arg
-    fov_detected_transcript, mask, gene_panel, fov_selected, z_idx = func_input_arg
+    fov_detected_transcript, mask, gene_panel, fov_selected, z_idx,fov_xy = func_input_arg
     print('started data generation for .... fov ' + str(fov_selected))
     # list and dict to keep record of cell_by_gene and cell_meta_data of cells within the fov
     cell_by_gene = []
@@ -167,9 +183,9 @@ def data_generator_per_fov(func_input_arg):
 
 
     # x_min,x_max,y_min,y_max of the fov
-    fov_x_min, fov_x_max = fov_detected_transcript.global_x.min(), fov_detected_transcript.global_x.max()
-    fov_y_min, fov_y_max = fov_detected_transcript.global_y.min(), fov_detected_transcript.global_y.max()
-
+    # fov_x_min, fov_x_max = fov_detected_transcript.global_x.min(), fov_detected_transcript.global_x.max()
+    # fov_y_min, fov_y_max = fov_detected_transcript.global_y.min(), fov_detected_transcript.global_y.max()
+    fov_x_min,fov_x_max,fov_y_min, fov_y_max = fov_xy
     # then filter the transcript for that specific z_layer
     fov_detected_transcript = fov_detected_transcript[fov_detected_transcript['global_z'] == z_idx]
     # the reason for not filtering by z-layer first is in order to approx. the real fov size
@@ -178,17 +194,27 @@ def data_generator_per_fov(func_input_arg):
     temp_cell_transcript_record = []
     cell_contour_record = {}
     uni_ind = []
-    for unique_idx in range(unique_rgb_mask_label.shape[0]):
+    
+    power=int(np.max(np.array([6,np.ceil(np.log10(unique_rgb_mask_label.shape[0]))])))
+    unique_cell_string=np.random.choice(np.arange(10**power,10**(power+1)), size=(unique_rgb_mask_label.shape[0]), replace=False)
+    for unique_i,unique_idx in enumerate(range(unique_rgb_mask_label.shape[0])):
         try:
             if (not (np.max(unique_rgb_mask_label[unique_idx, :]) == 255)) & (not no_cell_flag):
+                # print(unique_i)
+                cell_ID = 'cell_in_' + 'reg_' + str(0) + '_' + str(unique_idx) + '_Z_' + str(z_idx) + '_fov_'+str(fov_selected)+ '_' + str(unique_cell_string[unique_i])
 
-                cell_ID = 'cell_in_' + 'reg_' + str(0) + '_' + str(unique_idx) + '_Z_' + str(z_idx) + '_' + str(
-                    np.random.randint(99999, 9999999))
-                output_tuple = numba_fun_2(fov_mask, unique_rgb_mask_label, unique_idx, fov_y_min, fov_x_min)
-                cell_contour, center_x, center_y, label_x_min, label_x_max, label_y_min, label_y_max = output_tuple
+                fov_xy_min = np.hstack([fov_y_min, fov_x_min])
+                fov_xy_max = np.hstack([fov_y_max,fov_x_max])
+                numba_fun_2_output = numba_fun_2(fov_mask, unique_rgb_mask_label, unique_idx, fov_xy_min,fov_xy_max)
+                if numba_fun_2_output == None: # numba output returns none if the cell center is not far enough
+                    print('found a cell detected near fov boundary')
+                    continue # skip to the next for loop, i.e. skip to the next cell index
+
+                cell_contour, center_x, center_y, label_x_min, label_x_max, label_y_min, label_y_max = numba_fun_2_output
                 # switch the x and y coord
                 cell_contour = [(c[1], c[0]) for c in cell_contour]
                 cell_contour_record[cell_ID] = cell_contour
+
                 points_to_check = fov_detected_transcript.loc[:, ['global_x', 'global_y']].to_numpy()
                 polygon_temp = path.Path(cell_contour)
                 bool_index = polygon_temp.contains_points(points_to_check)
@@ -252,7 +278,7 @@ def cell_data_generator(detected_transcript,all_z_tiles,z_masks,fovs):
             rgb_mask_out, unique_rgb_mask_label = numba_fun_1(rgb_mask_copy, unique_rgb_mask)
 
             fov_mask = rgb_mask_out.max(axis=2)  # 2D mask
-            fov_detected_transcript = detected_transcript[detected_transcript['fov'] == int(fov_selected)]
+            # fov_detected_transcript = detected_transcript[detected_transcript['fov'] == int(fov_selected)]
 
             # x_min,x_max,y_min,y_max of the fov
             fov_x_min, fov_x_max = fov_detected_transcript.global_x.min(), fov_detected_transcript.global_x.max()
