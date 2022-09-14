@@ -1,17 +1,53 @@
 import pdb
-
 import pandas as pd
 import numpy as np
 from skimage import exposure
 from PIL import Image
 from skimage.io import imsave, imread
 import os
+import json
 from cellpose import io # cellpose input output module
 
-def prepar_tile(detected_transcript,all_Z_DAPI):
+
+# taken from the Merlin software github page with slight modification
+
+
+def prepar_tile(detected_transcript,fovs):       # (df_fov_arange,raw_data_path,pxl_micron):
+
+    # +++++++++++++++++++++++++ to be done +++++++++++++++++++++++++++++++++++++++++++++++++++++++
+    # this code here is trying to identify the tile bound based on the raw data instead of the detected transcripts
+
     # tile the image based on the x,y max and min for each fov
-    detected_transcript['fov'] = detected_transcript.fov.astype('category')
-    fovs = list(detected_transcript.fov.cat.categories)
+    # df_fov_min = df_fov_arange.min()
+    # df_fov_max = df_fov_arange.max()
+    # read in the Json experiment info file
+    # experiment_json = open( raw_data_path + 'experiment.json')
+    # experiment_info = json.load(experiment_json)
+    # start_fov = 0
+    # end_fov = 0
+    # for i in range(len(experiment_info['regionSummaries'])):
+    #     start_fov = experiment_info['regionSummaries'][i]['startIndex']
+    #     end_fov = experiment_info['regionSummaries'][i]['endIndex']
+    #     pdb.set_trace()
+    #
+    #     if (start_fov >= df_fov_min) or (end_fov >= df_fov_max): # just to check the dapi_fov includes the transcript fov
+    #         break
+    #
+    #
+    #
+    # # then based on the start_fov and end_fov index
+    # # read each .inf file
+    # fov_start_positions = pd.read_csv(raw_data_path +'settings/positions.csv', header = None, names = ['X','Y'] )
+    # pxl_size = 2048 # each fov is 2048 x 2048 pxl size
+    # x_bounds = np.empty([df_fov_arange.shape[0], 2])  # [[x_min,x_max]]
+    # y_bounds = np.empty([df_fov_arange.shape[0], 2])  # [[y_min,y_max]]
+    #
+    # for i,fov_idx in enumerate(range(start_fov,end_fov + 1)):
+    #     x_bounds[i, 0], x_bounds[i, 1] = fov_start_positions.loc[fov_idx,'X'], fov_start_positions.loc[fov_idx,'X'] + pxl_size*pxl_micron
+    #     y_bounds[i, 0], y_bounds[i, 1] = fov_start_positions.loc[fov_idx,'Y'], fov_start_positions.loc[fov_idx,'Y'] + pxl_size*pxl_micron
+    #
+    # return x_bounds, y_bounds
+
     x_bounds = np.empty([len(fovs), 2])  # [[x_min,x_max]]
     y_bounds = np.empty([len(fovs), 2])  # [[y_min,y_max]]
     for i, f in enumerate(fovs):
@@ -19,25 +55,8 @@ def prepar_tile(detected_transcript,all_Z_DAPI):
         x_bounds[i, 0], x_bounds[i, 1] = temp_df.global_x.min(), temp_df.global_x.max()
         y_bounds[i, 0], y_bounds[i, 1] = temp_df.global_y.min(), temp_df.global_y.max()
 
-    # convert the xy max min measures into pixel
-    min_x = detected_transcript.global_x.min()
-    min_y = detected_transcript.global_y.min()
-    x_bounds_pxl = ((x_bounds - min_x) * (1 / 0.108)).astype('int')
-    y_bounds_pxl = ((y_bounds - min_y) * (1 / 0.108)).astype('int')
+    return x_bounds,y_bounds
 
-    all_z_tiles = []
-
-    for z_idx in range(7):
-        dapi_tile_list = []
-        for idx in range(x_bounds_pxl.shape[0]):
-            xpxl_min, xpxl_max, ypxl_min, ypxl_max = x_bounds_pxl[idx, 0], x_bounds_pxl[idx, 1], y_bounds_pxl[idx, 0], \
-                                                     y_bounds_pxl[idx, 1]
-            dapi_tile_list.append(
-                all_Z_DAPI[z_idx][ypxl_min:ypxl_max, xpxl_min:xpxl_max])  # x for detected transcript is y in the pxl
-            # * CHECK the order of x and y
-        all_z_tiles.append(dapi_tile_list)
-
-    return all_z_tiles, fovs
 
 def prepare_train_test_data(all_z_tiles,save_path, **kwargs):
     """
