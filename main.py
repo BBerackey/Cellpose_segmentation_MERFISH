@@ -257,8 +257,11 @@ def main():
             all_z_results = pool_result.get()
 
 
+
             for result in all_z_results:
                 if not result[-1]:
+                    if isinstance(result[0],list): # stop if result is a list, since it is likly due to error
+                        pdb.set_trace()
                     z_cell_by_gene.append(result[0])
                     z_cell_meta_data.append(result[1])
                     if z_idx in z_cell_contour:
