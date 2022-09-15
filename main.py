@@ -155,12 +155,11 @@ def main():
         x_bounds,y_bounds = prepare_tile.prepar_tile(detected_transcript,fovs) #(df_fov_arange,raw_data_path,pxl_micron)
 
         # Modify the x_bounds and y_bounds to ensure overlap between the fovs
-        x_overlap = x_bounds[:, 0].min() - x_start
-        y_overlap = y_bounds[:, 0].min() - y_start
+        xy_overlap = 50 # the overlap is manually set to be 50 micron
 
         # only modify the xy_min bounds
-        x_bounds[:, 0] = x_bounds[:, 0] - x_overlap
-        y_bounds[:, 0] = y_bounds[:, 0] - y_overlap
+        x_bounds[:, 0] = np.where(x_bounds[:, 0] - xy_overlap > x_start, x_bounds[:, 0] - xy_overlap, x_bounds[:, 0])
+        y_bounds[:, 0] = np.where(y_bounds[:, 0] - xy_overlap > y_start, y_bounds[:, 0] - xy_overlap, y_bounds[:, 0])
 
 
         # prepare the tiles, performing the tile within the main function to prevent memory overload
