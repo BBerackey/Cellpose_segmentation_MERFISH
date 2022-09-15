@@ -245,6 +245,9 @@ def data_generator_per_fov(func_input_arg):
     if len(cell_by_gene) !=0:
         cell_by_gene = pd.concat(cell_by_gene)
         cell_meta_data = pd.concat(cell_meta_data)
+    else:
+        no_cell_flag = True # this will ensure the flag is correct after removing cells near boundary
+                           # because sometimes  all the cells that are present in the fov are in the bouondary
     print('done.... fov ' + str(fov_selected))
 
     return cell_by_gene,cell_meta_data,cell_contour_fov,no_cell_flag
