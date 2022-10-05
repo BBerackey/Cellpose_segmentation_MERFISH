@@ -12,10 +12,10 @@ def dapi_reader(reader_func_input):
     print(f'done reading layer {z_idx}')
     return dapi_imag
 
-def parallel_dapi_reader(file_path):
+def parallel_dapi_reader(file_path,number_of_layers):
     all_Z_DAPI = []
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        reader_func_input = [(file_path,z_idx) for z_idx in range(7)]
+        reader_func_input = [(file_path,z_idx) for z_idx in range(number_of_layers)]
         results = executor.map(dapi_reader,reader_func_input)
         for f in results:
             all_Z_DAPI.append(f)
