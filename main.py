@@ -48,11 +48,15 @@ def debug_func():
     cell_by_gene = []
     cell_meta_data = []
     mp2_fun_input = []
-    file_path = 'Z://Lab//MERFISH_Imaging data//Kim2_202112171955_12172021TREM2-5x12Mo300GP_VMSC00101//region_0//cellpose debugging files//'
+    file_path = 'U:/Lab/MERFISH_Imaging data/Kim2_202112171955_12172021TREM2-5x12Mo300GP_VMSC00101/region_2/'
     with open(file_path + 'all_z_results.pickle', 'rb') as f:
         all_results = pickle.load(f)
     all_cell_meta_data = all_results['cell_meta_data']
     all_cell_gene_data = all_results['cell_by_gene']
+
+    import pdb
+    pdb.set_trace()
+
     print('done loading the data')
     detected_transcript = pd.read_csv(file_path + 'detected_transcripts.csv')
     detected_transcript['fov'] = detected_transcript.fov.astype('category')
@@ -101,12 +105,12 @@ def debug_func():
 
 
 def main():
-
+    print('this is version 2')
     use_GPU = core.use_gpu()
     print('>>> GPU activated? %d' % use_GPU)
     logger_setup()
 
-    file_paths = ['U:/Lab/MERFISH_Imaging data/Kim2_202112171955_12172021TREM2-5x12Mo300GP_VMSC00101/region_0/'] #,
+    file_paths = ['U:/Lab/MERFISH_Imaging data/Kim2_202112171955_12172021TREM2-5x12Mo300GP_VMSC00101/region_2/'] #,
                   # 'U://MERFISH_Imaging data/Kim2_202112171955_12172021TREM2-5x12Mo300GP_VMSC00101/region_0/'
                   # 'Z:/Lab/MERFISH_Imaging data/Kim2_202112171955_12172021TREM2-5x12Mo300GP_VMSC00101/region_1/',
                   # 'Z:/Lab/MERFISH_Imaging data/Kim2_202112171955_12172021TREM2-5x12Mo300GP_VMSC00101/region_2/',
@@ -118,7 +122,7 @@ def main():
 
     for f_idx,file_path in enumerate(file_paths):
         # read all the dapi images
-        all_Z_DAPI = dapi_reader.parallel_dapi_reader(file_path)
+        all_Z_DAPI = dapi_reader.parallel_dapi_reader(file_path, 7)
         raw_data_path = raw_data_paths[f_idx]
 
         # read the detected transcript csv file
@@ -256,8 +260,6 @@ def main():
             pool_result = pool.map_async(cell_data_generator_func.data_generator_per_fov,func_input_z)
             all_z_results = pool_result.get()
 
-
-
             for result in all_z_results:
                 if not result[-1]:
                     if isinstance(result[0],list): # stop if result is a list, since it is likly due to error
@@ -301,13 +303,13 @@ def main():
                     fov_all_cell_gene_data = []
                     fov_all_cell_meta_data = []
                     for z_idx in range(len(all_cell_meta_data)):
-                        fov_all_cell_meta_data.append(
-                            all_cell_meta_data[z_idx][all_cell_meta_data[z_idx]['fov'] == fov_selected])
-                        fov_all_cell_gene_data.append(all_cell_gene_data[z_idx].loc[fov_all_cell_meta_data[z_idx].index,
-                                                      :])  # filter the cell by gene based on the index of cells in the fov selected
-                        # import pdb;
-                        # pdb.set_trace()
-                    mp2_fun_input.append((fov_all_cell_gene_data, fov_all_cell_meta_data))
+                        temp_meta_data = all_cell_meta_data[z_idx][all_cell_meta_data[z_idx]['fov'] == fov_selected]
+                        # check if the dataframe is empty
+                        if not temp_meta_data.empty:
+                            fov_all_cell_meta_data.append(temp_meta_data)
+                            fov_all_cell_gene_data.append(all_cell_gene_data[z_idx].loc[temp_meta_data.index,:])  # filter the cell by gene based on the index of cells in the fov selected
+                    if len(fov_all_cell_meta_data) == len(all_cell_meta_data):  # this is to ensure the fov is in all z layers
+                        mp2_fun_input.append((fov_all_cell_gene_data, fov_all_cell_meta_data))
                 except IndexError:
                     print(f'error no {fov_selected} fov ')
                     print(f'will skip to the next fov')
@@ -324,35 +326,57 @@ def main():
         cell_meta_data = []
 
         # ensure there is a folder for saving the cell boundaries
-        if not  os.path.isdir(file_path +'cellpose_cell_boundaries'):
-            os.mkdir(file_path +'cellpose_cell_boundaries')
+        if not  os.path.isdir(file_path +'cellpose_cell_boundaries_optimized'):
+            os.mkdir(file_path +'cellpose_cell_boundaries_optimized')
 
-        for fov_i,mp2_result in enumerate((mp2_all_results)):
+        for mp2_result in mp2_all_results:
             if not (mp2_result[0].empty):
                 cell_by_gene.append(mp2_result[0])
                 cell_meta_data.append(mp2_result[1])
                 current_fov = list(mp2_result[-1].keys())[0]
-                h5file = h5py.File(file_path +'cellpose_cell_boundaries' +'/cell_contour' + str(int(current_fov)) + '.h5', 'w')
+                h5file = h5py.File(
+                    file_path + 'cellpose_cell_boundaries_optimized' + '/cell_contour_' + str(int(current_fov)) + '.h5', 'w')
+
+                fov_xy_min_max = np.array([[x_bounds[fovs.index(current_fov), 0], y_bounds[fovs.index(current_fov), 0]],
+                                           [x_bounds[fovs.index(current_fov), 1],
+                                            y_bounds[fovs.index(current_fov), 1]]])
+                fov_xy_bounds_bound = h5file.create_dataset('fov_bounds/xy_min_max', data=fov_xy_min_max)
+
                 for current_cell_dict in mp2_result[-1][current_fov]:
                     current_cell_idx = list(current_cell_dict.keys())[0]
                     # add the contour of the zeroth cell index
-                    z_specific_cell_contour = h5file.create_dataset(current_cell_idx + '/' + 'zIndex_0',
-                                                                    data=np.array(all_z_cell_contour[0][fov_i][int(current_fov)][current_cell_idx]))
-                    # add the contour of the cells starting from z-layer =1
-                    for z_i,z_idx in enumerate(current_cell_dict[current_cell_idx].keys(),1):
-                        z_specific_cell_contour = h5file.create_dataset(current_cell_idx + '/' + z_idx, data = np.array(all_z_cell_contour[z_i][fov_i][int(current_fov)][current_cell_dict[current_cell_idx][z_idx][-1]] ))
-                h5file.close()
+                    if int(current_fov) in all_z_cell_contour[0].keys():  # check if that fov exists
+                        z_specific_cell_contour = h5file.create_dataset(
+                            'cell_indexes/' + current_cell_idx + '/' + 'zIndex_0',
+                            data=np.array(all_z_cell_contour[0][int(current_fov)][
+                                              current_cell_idx]))
+                        # add the contour of the cells starting from z-layer =1
+                        for z_i, z_idx in enumerate(current_cell_dict[current_cell_idx].keys(), 1):
+                            if int(current_fov) in all_z_cell_contour[z_i].keys():  # check if that fov exists
 
+                                try:
+                                    z_specific_cell_contour = h5file.create_dataset(current_cell_idx + '/' + z_idx,
+                                                                                    data=np.array(
+                                                                                        all_z_cell_contour[z_i][
+                                                                                            int(current_fov)][
+                                                                                            current_cell_dict[
+                                                                                                current_cell_idx][
+                                                                                                z_idx][-1]]))
+                                except:
+                                    pdb.set_trace()
+                                    print((z_i, current_fov, current_cell_dict[current_cell_idx][z_idx][-1]))
+
+                h5file.close()
 
         cell_by_gene = pd.concat(cell_by_gene)
         cell_meta_data = pd.concat(cell_meta_data)
         # save the cell by gene and meta data
-        cell_by_gene.to_csv(file_path + 'cellpose_cell_by_gene.csv')
+        cell_by_gene.to_csv(file_path + 'cellpose_cell_by_gene_optimized.csv')
         cell_meta_data.to_csv(
-            file_path + 'cellpose_cell_meta_data.csv')
+            file_path + 'cellpose_cell_meta_data_optimized.csv')
 
 
 if __name__ == '__main__':
-   main()
-   #debug_func()
+   # main()
+   debug_func()
 
