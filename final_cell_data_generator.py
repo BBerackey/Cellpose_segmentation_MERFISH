@@ -79,10 +79,12 @@ def numba_func_cell_merge(numpy_cell_by_gene,numpy_cell_meta_data,all_cell_idx_l
 
                         xy_max[z_idx,0] = temp_xy_max[0,0]
                         xy_max[z_idx, 1] = temp_xy_max[0, 1]
-            elif z_idx == 1:
+            else:
                 break # if no cell algins to the next first z-layer, i.e. z_idx =1
                          # we do not expect cells in the other layer to align, so skip this
                          # loop to save computation time
+                         # also if their is a discontinuity, then the segmented cell is probably an artifact
+
         all_numba_output.append((csum_gene_array, cell_idx, xy_max, xy_min,algining_cell_dict))
     return all_numba_output
 

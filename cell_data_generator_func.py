@@ -105,8 +105,8 @@ def numba_fun_1(rgb_mask_copy, unique_rgb_mask):
 
 
 # @jit(nopython=True)
-def numba_fun_2(fov_mask, unique_rgb_mask_label, unique_idx, fov_xy_min,fov_xy_max):
-    fov_log_idx = fov_mask == np.max(unique_rgb_mask_label[unique_idx, :])
+def numba_fun_2(fov_mask, unique_mask_value, fov_xy_min,fov_xy_max):
+    fov_log_idx = fov_mask == unique_mask_value
     ind = fov_log_idx.nonzero()
     ind_1 = ind[0].reshape(ind[0].shape[0], 1)
     ind_2 = ind[1].reshape(ind[1].shape[0], 1)
@@ -172,13 +172,16 @@ def data_generator_per_fov(func_input_arg):
     cell_by_gene = []
     cell_meta_data = []
     cell_contour_fov = {}
+    no_cell_flag = False
 
     # selected_dapi = selected_dapi / 65535
-    rgb_mask = cellpose.plot.mask_rgb(mask)
-    unique_rgb_mask = numba_unique(rgb_mask)
-    rgb_mask_copy = rgb_mask.copy()
-    rgb_mask_out, unique_rgb_mask_label,no_cell_flag = numba_fun_1(rgb_mask_copy, unique_rgb_mask)
-    fov_mask = rgb_mask_out.max(axis=2)  # 2D mask
+    unique_mask_labels = np.unique(mask)
+
+    # rgb_mask = cellpose.plot.mask_rgb(mask)
+    # unique_rgb_mask = numba_unique(rgb_mask)
+    # rgb_mask_copy = rgb_mask.copy()
+    # rgb_mask_out, unique_rgb_mask_label,no_cell_flag = numba_fun_1(rgb_mask_copy, unique_rgb_mask)
+    # fov_mask = rgb_mask_out.max(axis=2)  # 2D mask
 
 
 
@@ -195,17 +198,17 @@ def data_generator_per_fov(func_input_arg):
     cell_contour_record = {}
     uni_ind = []
     
-    power=int(np.max(np.array([6,np.ceil(np.log10(unique_rgb_mask_label.shape[0]))])))
-    unique_cell_string=np.random.choice(np.arange(10**power,10**(power+1)), size=(unique_rgb_mask_label.shape[0]), replace=False)
-    for unique_i,unique_idx in enumerate(range(unique_rgb_mask_label.shape[0])):
+    power=int(np.max(np.array([6,np.ceil(np.log10(unique_mask_labels.shape[0]))])))
+    unique_cell_string=np.random.choice(np.arange(10**power,10**(power+1)), size=(unique_mask_labels.shape[0]), replace=False)
+    for unique_i,unique_idx in enumerate(range(unique_mask_labels.shape[0])):
         try:
-            if (not (np.max(unique_rgb_mask_label[unique_idx, :]) == 255)) & (not no_cell_flag):
+            if not (np.max(unique_mask_labels[unique_idx]) == 0):
                 # print(unique_i)
                 cell_ID = 'cell_in_' + 'reg_' + str(0) + '_' + str(unique_idx) + '_Z_' + str(z_idx) + '_fov_'+str(fov_selected)+ '_' + str(unique_cell_string[unique_i])
 
                 fov_xy_min = np.hstack([fov_y_min, fov_x_min])
                 fov_xy_max = np.hstack([fov_y_max,fov_x_max])
-                numba_fun_2_output = numba_fun_2(fov_mask, unique_rgb_mask_label, unique_idx, fov_xy_min,fov_xy_max)
+                numba_fun_2_output = numba_fun_2(mask, unique_mask_labels[unique_idx], fov_xy_min,fov_xy_max)
                 if numba_fun_2_output == None: # numba output returns none if the cell center is not far enough
                     print('found a cell detected near fov boundary')
                     continue # skip to the next for loop, i.e. skip to the next cell index
