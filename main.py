@@ -220,8 +220,11 @@ def main():
                 z_masks.append(masks)
                 print(f'done preparing the mask for z layer{z_idx}')
 
-            #with open(file_path + 'all_output_mask_' + mm_dd_yy +'.pickle', 'wb') as f:
-            #    pickle.dump(z_masks, f)
+        #     with open(file_path + 'all_output_mask_' + mm_dd_yy +'.pickle', 'wb') as f:
+        #        pickle.dump(z_masks, f)
+        #
+        # import pdb
+        # pdb.set_trace()
 
         # generate the cell data
         detected_transcript['gene'] = detected_transcript['gene'].astype('category')
@@ -238,6 +241,7 @@ def main():
             z_cell_by_gene = []
             z_cell_meta_data = []
             z_cell_contour = {}
+            z_cell_contour[z_idx] = {}
 
             pool = mp.Pool(mp.cpu_count())
             func_input_z = []
@@ -266,10 +270,9 @@ def main():
                         pdb.set_trace()
                     z_cell_by_gene.append(result[0])
                     z_cell_meta_data.append(result[1])
-                    if z_idx in z_cell_contour:
-                      z_cell_contour[z_idx].append(result[2])
-                    else:
-                      z_cell_contour[z_idx] = [result[2]]
+                    z_cell_contour[z_idx][list(result[2].keys())[-1]] = list(result[2].values())[-1] # collect the contours as a dictionary
+
+
             pd_func = lambda x: pd.concat(x) if len(x) > 1 else x[-1] # concatenate only if it is list of dataframes/series if not return the input first element
             all_cell_gene_data.append(pd_func(z_cell_by_gene))
             all_cell_meta_data.append(pd_func( z_cell_meta_data))
@@ -329,6 +332,9 @@ def main():
         if not  os.path.isdir(file_path +'cellpose_cell_boundaries_optimized'):
             os.mkdir(file_path +'cellpose_cell_boundaries_optimized')
 
+        import pdb
+        pdb.set_trace()
+
         for mp2_result in mp2_all_results:
             if not (mp2_result[0].empty):
                 cell_by_gene.append(mp2_result[0])
@@ -377,6 +383,6 @@ def main():
 
 
 if __name__ == '__main__':
-   # main()
-   debug_func()
+   main()
+   # debug_func()
 
