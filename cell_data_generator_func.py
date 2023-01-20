@@ -111,7 +111,7 @@ def numba_fun_2(fov_mask, unique_mask_value, fov_xy_min,fov_xy_max):
     ind_1 = ind[0].reshape(ind[0].shape[0], 1)
     ind_2 = ind[1].reshape(ind[1].shape[0], 1)
     ind = np.concatenate((ind_1, ind_2), axis=1)  # [x_ind,y_ind]
-    ind = np.add(ind * 0.108, fov_xy_min)  # convert to pxl to microns  and the offset
+    ind = np.add(ind * 0.108, fov_xy_min)  # convert from pxl to microns  and the offset
                                            # fov_xy_min in np array [fov_y_min,fov_x_min]
     label_y_min, label_y_max = ind[:, 0].min(), ind[:, 0].max()  # these are the xy max and mins
     label_x_min, label_x_max = ind[:, 1].min(), ind[:, 1].max()
@@ -123,14 +123,12 @@ def numba_fun_2(fov_mask, unique_mask_value, fov_xy_min,fov_xy_max):
 
     # before preceeding further  we need to check if the cell is far enough from the boundary of the
     # fov. According to Kevin, the cells should be atleast 20 micron away from the boundary
+    # Edited: rather than excluding  from all 4 sides, we should only from the sides related to x_min and y_min
+    # this will ensure the cell excluded from one fov will be included in the other.
 
     if (center_x - fov_xy_min[1]) < 20: # 1st check if center_x is far enough from the left edge
         return None
-    elif (fov_xy_max[1] - center_x) < 20: # 2nd check if center_x is far enough from the right edge
-        return None
     elif (center_y - fov_xy_min[0]) < 20: # 3rd check if center_y is far enough from the top edge
-        return None
-    elif (fov_xy_max[0] - center_y) < 20: # 4th check if center_y is far enough from the bottom edge
         return None
     else:
         pass
